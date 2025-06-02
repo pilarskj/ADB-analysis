@@ -1,0 +1,4 @@
+*.newick
+*.log
+*.out
+*.state

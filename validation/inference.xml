@@ -1,1 +1,127 @@
-/Users/jpilarski/Projects/P1_AgeDependentTrees/validation/calibration/inference.xml
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<beast version="2.0">
+
+<map name="Uniform" >beast.base.inference.distribution.Uniform</map>
+<map name="Exponential" >beast.base.inference.distribution.Exponential</map>
+<map name="LogNormal" >beast.base.inference.distribution.LogNormalDistributionModel</map>
+<map name="Normal" >beast.base.inference.distribution.Normal</map>
+<map name="Beta" >beast.base.inference.distribution.Beta</map>
+<map name="Gamma" >beast.base.inference.distribution.Gamma</map>
+<map name="LaplaceDistribution" >beast.base.inference.distribution.LaplaceDistribution</map>
+<map name="Poisson" >beast.base.inference.distribution.Poisson</map>
+<map name="prior" >beast.base.inference.distribution.Prior</map>
+<map name="InverseGamma" >beast.base.inference.distribution.InverseGamma</map>
+<map name="OneOnX" >beast.base.inference.distribution.OneOnX</map>
+
+<!-- input data (dummy sequences for n taxa) -->
+<data id="alignment" name="alignment" >
+  <plate var="i" range="1:100">
+    <sequence id="seq_$(i)" taxon="$(i)" value="-"/>
+  </plate>
+</data>
+
+<!-- define set of cells based on alignment -->
+<taxonset id="taxonSet" spec="beast.base.evolution.alignment.TaxonSet">
+  <alignment idref="alignment"/>
+</taxonset>
+
+<!-- specify tip dates -->
+<trait id="dateTrait" spec="beast.base.evolution.tree.TraitSet"
+  taxa="@taxonSet" traitname="date-forward" value="1=$(origin)"/> <!-- set known origin -->
+
+<!-- fix true tree -->
+<tree id="tree" spec="feast.fileio.TreeFromNewickFile" fileName="trees/tree_$(treeNr).newick"
+  IsLabelledNewick="true" adjustTipHeights="true">
+  <taxonset idref="taxonSet"/>
+  <trait idref="dateTrait"/>
+</tree>
+
+
+<!-- run MCMC with sampling from the prior -->
+<run id="mcmc" spec="beast.base.inference.MCMC" chainLength="1000000" sampleFromPrior="true">
+  
+  <operatorschedule spec="beast.base.evolution.operator.kernel.BactrianOperatorSchedule" autoOptimize="true"/>
+
+  <!-- define state node -->
+  <state id="state" spec="beast.base.inference.State" storeEvery="1000">
+
+    <!-- ADBP parameters with intial values-->
+    <parameter id="lifetime" spec="beast.base.inference.parameter.RealParameter"
+               name="stateNode" dimension="1" lower="0" upper="Infinity" value="10"/>
+
+    <parameter id="shape" spec="beast.base.inference.parameter.IntegerParameter"
+               name="stateNode" dimension="1" lower="1" value="10"/>
+
+    <parameter id="deathprob" spec="beast.base.inference.parameter.RealParameter"
+               name="stateNode" dimension="1" lower="0" upper="1" value="0.1"/>
+
+    <parameter id="rho" spec="beast.base.inference.parameter.RealParameter"
+               name="stateNode" dimension="1" lower="0" upper="1" value="$(rho)"/>
+               
+  </state>
+  
+  
+  <!-- define distributions -->
+  <distribution id="posterior" spec="beast.base.inference.CompoundDistribution"> 
+
+    <!-- tree prior --> 
+    <distribution id="prior" spec="beast.base.inference.CompoundDistribution" useThreads='true'>
+      <distribution id="GammaBranchingModel" spec="adbp.GammaBranchingModel" tree="@tree" 
+        lifetime="@lifetime" shapeInteger="@shape" deathprob="@deathprob" rho="@rho" approx="true">
+        <parameter spec="beast.base.inference.parameter.RealParameter" name="origin" value="$(origin)"/>
+      </distribution>
+    </distribution>
+    
+    <!-- priors on phylodynamic parameters -->
+    <prior id="lifetimePrior" name="distribution" x="@lifetime">
+      <LogNormal name="distr" M="2" S="1"/></prior> 
+
+    <prior id="shapePrior" name="distribution" x="@shape">
+      <LogNormal name="distr" M="2" S="1"/></prior> 
+
+    <prior id="deathprobPrior" name="distribution" x="@deathprob">
+      <Exponential name="distr" mean="0.1"/></prior>
+    
+    <!-- ignored --> 
+    <distribution id="likelihood" spec="beast.base.inference.CompoundDistribution" useThreads='true'/>
+      
+  </distribution>
+
+
+  <!-- operators -->
+  <operator id="lifetimeScaler" spec="beast.base.evolution.operator.ScaleOperator"
+            parameter="@lifetime" scaleFactor="0.5" weight="10"/>
+
+  <operator id="shapeRandomWalk" spec="beast.base.inference.operator.IntRandomWalkOperator" 
+            parameter="@shape" windowSize="5" weight="20"/>
+
+  <operator id="deathprobScaler" spec="beast.base.evolution.operator.ScaleOperator"
+            parameter="@deathprob" scaleFactor="0.5" weight="10"/>
+         
+  <!-- joint operator due to correlations --> 
+  <operator id="lifetimeDeathUpDown" spec="beast.base.inference.operator.UpDownOperator" scaleFactor="0.5" weight="10">
+    <up idref="lifetime"/>
+    <down idref="deathprob"/>
+  </operator> 
+
+
+  <!-- loggers -->
+  <!-- screen logger -->
+  <logger id="screenlog" spec="beast.base.inference.Logger" logEvery="1000">
+    <log idref="posterior"/>
+    <log spec="beast.base.inference.util.ESS" arg="@posterior"/>
+  </logger>
+
+ <!-- trace logger -->
+  <logger id="tracelog" spec="beast.base.inference.Logger" fileName="inference/inference_$(treeNr).log" logEvery="1000">
+    <log idref="posterior"/>
+    <log idref="prior"/>
+    <log idref="lifetime"/>
+    <log idref="shape"/>
+    <log idref="deathprob"/>
+    <log idref="rho"/>
+  </logger>
+
+</run>
+
+</beast>

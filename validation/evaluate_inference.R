@@ -10,7 +10,6 @@
 ## ---------------------------
 
 setwd("~/Projects/P1_AgeDependentTrees/ADB-analysis/validation")
-inf_dir = "~/Projects/P1_AgeDependentTrees/validation/calibration/inference" ## to change
 
 library(tracerer)
 library(HDInterval)
@@ -69,7 +68,7 @@ get_estimates <- function(log_fs, parameters) {
 truth = read.csv("tree_data.csv")
 
 ## load inferred parameters
-log_fs = paste0(inf_dir, '/inference_', c(1:100), '.log')
+log_fs = paste0('inference/inference_', c(1:100), '.log')
 parameters = c('shape', 'lifetime', 'deathprob')
 data = get_estimates(log_fs, parameters)
 
