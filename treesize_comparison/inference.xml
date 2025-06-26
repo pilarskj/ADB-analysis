@@ -15,7 +15,7 @@
 
 <!-- input data (dummy sequences for n taxa) -->
 <data id="alignment" name="alignment" >
-  <plate var="i" range="1:100">
+  <plate var="i" range="1:$(nTips)">
     <sequence id="seq_$(i)" taxon="$(i)" value="-"/>
   </plate>
 </data>
@@ -30,7 +30,7 @@
   taxa="@taxonSet" traitname="date-forward" value="1=$(origin)"/> <!-- set known origin -->
 
 <!-- fix true tree -->
-<tree id="tree" spec="feast.fileio.TreeFromNewickFile" fileName="trees/tree_$(treeNr).newick"
+<tree id="tree" spec="feast.fileio.TreeFromNewickFile" fileName="trees/tree_n$(nTips)_$(treeNr).newick"
   IsLabelledNewick="true" adjustTipHeights="true">
   <taxonset idref="taxonSet"/>
   <trait idref="dateTrait"/>
@@ -47,13 +47,13 @@
 
     <!-- ADBP parameters with intial values-->
     <parameter id="lifetime" spec="beast.base.inference.parameter.RealParameter"
-               name="stateNode" dimension="1" lower="0" upper="Infinity" value="50"/>
+               name="stateNode" dimension="1" lower="0" upper="Infinity" value="5"/>
 
     <parameter id="shape" spec="beast.base.inference.parameter.IntegerParameter"
                name="stateNode" dimension="1" lower="1" value="10"/>
 
     <parameter id="deathprob" spec="beast.base.inference.parameter.RealParameter"
-               name="stateNode" dimension="1" lower="0" upper="1" value="0.1"/>
+               name="stateNode" dimension="1" lower="0" upper="1" value="0.2"/>
 
     <parameter id="rho" spec="beast.base.inference.parameter.RealParameter"
                name="stateNode" dimension="1" lower="0" upper="1" value="0.5"/>
@@ -77,10 +77,10 @@
       <LogNormal name="distr" M="2" S="1"/></prior> 
 
     <prior id="shapePrior" name="distribution" x="@shape">
-      <LogNormal name="distr" M="2" S="1"/></prior> 
+      <Uniform name="distr" lower="1" upper="100"/></prior> 
 
     <prior id="deathprobPrior" name="distribution" x="@deathprob">
-      <Exponential name="distr" mean="0.1"/></prior>
+      <Beta name="distr" alpha="2" beta="5"/></prior>
       
     <prior id="rhoPrior" name="distribution" x="@rho">
       <Beta name="distr" alpha="2" beta="5"/></prior>
@@ -102,7 +102,7 @@
             parameter="@deathprob" scaleFactor="0.5" weight="10"/>
             
   <operator id="rhoScaler" spec="beast.base.evolution.operator.ScaleOperator" 
-            parameter="@rho" scaleFactor="0.5" weight="10"/> <!-- used feast.operators.SmartScaleOperator -->
+            parameter="@rho" scaleFactor="0.5" weight="10"/> 
          
   <!-- joint operator due to correlations --> 
   <operator id="lifetimeDeathUpDown" spec="beast.base.inference.operator.UpDownOperator" scaleFactor="0.5" weight="10">
@@ -128,7 +128,7 @@
   </logger>
 
  <!-- trace logger -->
-  <logger id="tracelog" spec="beast.base.inference.Logger" fileName="inference/inference_$(treeNr).log" logEvery="1000">
+  <logger id="tracelog" spec="beast.base.inference.Logger" fileName="inference/inference_n$(nTips)_$(treeNr).log" logEvery="1000">
     <log idref="posterior"/>
     <log idref="prior"/>
     <log idref="lifetime"/>

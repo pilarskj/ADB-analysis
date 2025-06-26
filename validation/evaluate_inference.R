@@ -1,6 +1,6 @@
 ## ---------------------------
 ##
-## Script for evaluating phylodynamic inference under the Age-Dependent Branching model (validation/ well-calibrated simulation study)
+## Script for evaluating phylodynamic inference under the Age-Dependent Branching model (validation)
 ##
 ## Author: Julia Pilarski
 ## Email: julia.pilarski@bsse.ethz.ch
@@ -18,6 +18,7 @@ library(stringr)
 library(tidyr)
 library(tibble)
 library(ggplot2)
+library(scales)
 theme_set(theme_classic(base_size = 14))
 
 ## ---------------------------
@@ -69,23 +70,24 @@ truth = read.csv("tree_data.csv")
 
 ## load inferred parameters
 log_fs = paste0('inference/inference_', c(1:100), '.log')
-parameters = c('shape', 'lifetime', 'deathprob')
+parameters = c('shape', 'lifetime', 'deathprob', 'rho')
 data = get_estimates(log_fs, parameters)
 
 ## check convergence
-all(data$ESS >= 200, na.rm = T) # all chains have sufficient ESS
+data %>% filter(ESS < 200) %>% pull(ID) %>% unique() # 3 chains did not converge: 16, 38, 42
 data %>% filter(is.na(ESS)) # all have shape = 1
 truth[data %>% filter(is.na(ESS)) %>% pull(ID) %>% as.numeric(), ] # indeed, the real shape is 1
 
-## align estimates &calculate coverage
+## align estimates & calculate coverage
 df = data %>% 
   left_join(truth %>%
               pivot_longer(cols = parameters, names_to = "parameter", values_to = "true") %>%
               select(ID = tree, parameter, true) %>%
               mutate(ID = as.character(ID)), by = c("ID", "parameter")) %>%
   mutate(correct = ifelse(true >= lower & true <= upper, T, F),
-         parameter = factor(parameter, levels = parameters)) 
-cov = df %>% group_by(parameter) %>% summarize(cov = round(sum(correct) * 100 / n(), 1)) 
+         parameter = factor(parameter, levels = parameters)) %>%
+  filter(!ID %in% c("16", "38", "42")) # remove erroneous chains from downstream analysis
+cov = df %>% group_by(parameter) %>% summarize(cov = round(sum(correct), 1)) 
 
 ## plot results
 ggplot(df, aes(x = true, y = median, color = correct)) +
@@ -94,11 +96,13 @@ ggplot(df, aes(x = true, y = median, color = correct)) +
   geom_text(data = cov, mapping = aes(x = -Inf, y = -Inf, label = paste(cov, "%")), hjust = -6.5, vjust = -1, inherit.aes = F) + 
   geom_line(aes(x = true, y = true), inherit.aes = F, alpha = 0.25) + 
   scale_color_manual(values = c("FALSE" = "#F8766D", "TRUE" = "#009E73")) + 
+  scale_y_continuous(breaks = pretty_breaks()) +
   labs(x = "True value", y = "Posterior median\nwith 95% HPD interval") +
   facet_wrap(~parameter, scales = "free", labeller = as_labeller(
-    c("shape" = "'Shape'~italic(k)", "lifetime" = "'Mean lifetime'~italic(l)", "deathprob" = "'Death probability'~italic(d)"), 
+    c("shape" = "'Shape'~italic(k)", "lifetime" = "'Mean lifetime'~italic(l)", 
+      "deathprob" = "'Death probability'~italic(d)", "rho" = "'Sampling probability'~italic(rho)"), 
     label_parsed))
-ggsave("calibration.pdf", width = 10, height = 4)
+ggsave("validation_95HPD.pdf", width = 8, height = 6)
 
 
 
