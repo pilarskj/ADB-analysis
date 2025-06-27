@@ -38,7 +38,7 @@ tree$tip.label = c(1:Ntip(tree))
 ## compare log-likelihood curves between ADB and BDMM-Prime (calculated in BEAST2, see https://github.com/pilarskj/ADB/blob/main/test/test/adbp/BDTest.java)
 
 # load log-likelihood values (originally from ADB/test_data)
-df = read.csv('~/intellij/ADBP/test_data/loglikTreeBD.csv') 
+df = read.csv('loglikTreeBD.csv') 
 true = data.frame(parameter = c('lifetime', 'deathprob', 'rho'), value = c(5, 0.1, 0.1))
 
 methods = c('adb_approx' = 'ADB (approx)', 'adb_exact' = 'ADB (exact)', 'bdmm' = 'BDMM-Prime')
