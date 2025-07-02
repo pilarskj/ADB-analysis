@@ -74,11 +74,11 @@
     
     <!-- priors on phylodynamic parameters -->
     <prior id="lifetimePrior" name="distribution" x="@lifetime">
-      <LogNormal name="distr" M="2" S="1"/></prior> 
-
-    <prior id="shapePrior" name="distribution" x="@shape">
       <Uniform name="distr" lower="1" upper="100"/></prior> 
 
+    <prior id="shapePrior" name="distribution" x="@shape">
+      <LogNormal name="distr" M="2" S="1"/></prior> 
+      
     <prior id="deathprobPrior" name="distribution" x="@deathprob">
       <Beta name="distr" alpha="2" beta="5"/></prior>
       
