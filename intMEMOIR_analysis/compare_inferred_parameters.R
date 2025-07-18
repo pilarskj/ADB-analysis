@@ -56,7 +56,7 @@ write.csv(estimates, "estimates.csv", row.names = F, quote = F)
 # extract distributions                           
 set.seed(1) # for priors 
 data = rbind(adb_log %>% select(lifetime, deathprob, shape) %>% mutate(model = "ADB"), 
-             bdsky_log %>% select(lifetime, deathprob) %>% mutate(shape = NA, model = "BD"),
+             bdsky_log %>% select(lifetime, deathprob) %>% mutate(shape = 1, model = "BD"),
              # add prior distributions as reference for plotting
              data.frame(lifetime = rlnorm(n = 5e4, meanlog = 2.5, sdlog = 1), 
                         deathprob = rbeta(n = 5e4, shape1 = 2, shape2 = 5), 
@@ -75,11 +75,11 @@ for (param in c("lifetime", "deathprob", "shape")) {
 }
 
 # plot estimates
-g1 = ggplot(data %>% filter(model != "BD"), aes(x = model, y = shape, fill = model)) +
+g1 = ggplot(data, aes(x = model, y = shape, fill = model)) + 
   geomViolinDiscrete::geom_violin_discrete(scale = "width", color = NA, show.legend = F) +
   stat_pointinterval(data = data %>% filter(model == "ADB"), mapping = aes(x = model, y = shape, group = model), 
                      point_interval = median_hdi, .width = 0.95, point_size = 0.2, linewidth = 0.2, alpha = 0.5, show.legend = F) +
-  scale_fill_manual(values = palette[c(1,3)]) + 
+  scale_fill_manual(values = palette) + 
   scale_y_continuous(limits = c(0,50), breaks = seq(10,50,10)) +
   labs(x = NULL, y = expression(paste("Shape ", italic(k))), fill = NULL) +
   theme(axis.text.x = element_blank())
@@ -87,7 +87,7 @@ g1 = ggplot(data %>% filter(model != "BD"), aes(x = model, y = shape, fill = mod
 g2 = ggplot(data, aes(x = model, y = lifetime, fill = model)) +
   geom_violin(color = NA) + 
   stat_pointinterval(data = data %>% filter(model != "Prior"), mapping = aes(x = model, y = lifetime, group = model), 
-                     point_interval = median_hdi, .width = 0.95, point_size = 0.2, linewidth = 0.2, alpha = 0.5) +
+                     point_interval = median_hdi, .width = 0.95, point_size = 0.2, linewidth = 0.2, alpha = 0.5, show.legend = F) +
   geom_hline(yintercept = l_emp, linetype = "dashed") + # empirical estimate as reference
   scale_fill_manual(values = palette) + 
   ylim(c(1,20)) +
@@ -97,12 +97,16 @@ g2 = ggplot(data, aes(x = model, y = lifetime, fill = model)) +
 g3 = ggplot(data, aes(x = model, y = deathprob, fill = model)) +
   geom_violin(color = NA) + 
   stat_pointinterval(data = data %>% filter(model != "Prior"), mapping = aes(x = model, y = deathprob, group = model), 
-                     point_interval = median_hdi, .width = 0.95, point_size = 0.2, linewidth = 0.2, alpha = 0.5) +
+                     point_interval = median_hdi, .width = 0.95, point_size = 0.2, linewidth = 0.2, alpha = 0.5, show.legend = F) +
   geom_hline(yintercept = d_emp, linetype = "dashed") + # empirical estimate as reference
   scale_fill_manual(values = palette) + 
   ylim(c(0,0.5)) +
   labs(x = NULL, y = expression(paste("Death probability ", italic(d))), fill = NULL) +
   theme(axis.text.x = element_blank())
+
+g1 + ggtitle("A") + g2 + g3 + plot_layout(guides = "collect") & 
+  theme(legend.position = "bottom", plot.title = element_text(face= "bold"), plot.title.position = "plot")
+ggsave("comparison_phylodynamic_parameters.pdf", width = 8, height = 4)
 
 
 ## evaluate editing and clock model parameters
@@ -144,15 +148,10 @@ g5 = ggplot(data_scars, aes(x = site, y = scarringRate, fill = model)) +
   stat_pointinterval(data = data_scars %>% filter(model != "Prior"), mapping = aes(x = site, y = scarringRate, group = model), 
                      point_interval = median_hdi, .width = 0.95, point_size = 0.2, linewidth = 0.2, alpha = 0.5, position = position_dodge(0.9)) +
   scale_fill_manual(values = palette) + 
-  facet_wrap(~scar, ncol = 1, labeller = labeller(scar = c("1" = "Inversion", "2" = "Deletion"))) +
+  facet_wrap(~scar, ncol = 2, labeller = labeller(scar = c("1" = "Inversion", "2" = "Deletion"))) +
   ylim(c(0, 2)) +
   labs(x = expression(paste("Site ", italic(i))), y = expression(paste("Scar multiplier ", italic(s)[italic(i)])), fill = NULL) 
 
-
-## joint plot
-plot1 = g1 + ggtitle("A") + g2 + g3 + plot_layout(guides = "collect", widths = c(0.7,1,1)) & 
-  theme(legend.position = "none", plot.title = element_text(face= "bold"), plot.title.position = "plot")
-plot2 = g4 + g5 + plot_layout(guides = "collect") & theme(legend.position = "bottom")
-plot1 / plot2
-ggsave("comparison_inferred_parameters.pdf", width = 10, height = 9)
+g4 / g5 + plot_layout(guides = "collect") & theme(legend.position = "bottom")
+ggsave("comparison_editing_parameters.pdf", width = 8, height = 7)
 

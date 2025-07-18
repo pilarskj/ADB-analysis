@@ -13,8 +13,10 @@ setwd("~/Projects/P1_AgeDependentTrees/ADB-analysis/intMEMOIR_analysis")
 
 library(dplyr)
 library(ape)
+library(treestats)
 library(scTreeSim) ## tree simulator cloned from https://github.com/sccevo/scTreeSim.git
 library(ggplot2)
+library(patchwork)
 theme_set(theme_classic(base_size = 14))
 palette = c("#E69F00", "#56B4E9", "#009E73","#D55E00", "#CC79A7")
 
@@ -84,10 +86,27 @@ branch_lengths = rbind(lapply(trees, function(tree) data.frame(branch_length = g
 
 
 ## plot distributions
-ggplot(branch_lengths, aes(x = branch_length, fill = process)) + 
+g1 = ggplot(branch_lengths, aes(x = branch_length, fill = process)) + 
   geom_density(alpha = 0.6, color = NA) +
   scale_fill_manual(values = palette) +
   xlim(c(0,50)) +
   labs(title = "B", x = "Internal branch length", y = "Density", fill = NULL) +
-  theme(plot.title = element_text(face= "bold"), plot.title.position = "plot")
-ggsave("comparison_branch_lengths.pdf", width = 6, height = 4)
+  theme(plot.title = element_text(face = "bold"), plot.title.position = "plot",
+        legend.position = "inside", legend.position.inside = c(0.8,0.8))
+
+
+## compare balance of simulated and observed phylogenies 
+# B1 index https://www.rdocumentation.org/packages/treestats/versions/1.70.5/topics/b1
+b1 = rbind(lapply(trees, function(tree) data.frame(b1_index = b1(tree, normalization = "tips"))) %>% bind_rows(.id = 'tree') %>% mutate(process = "Empirical"),
+           lapply(trees_sim_adb, function(tree) data.frame(b1_index = b1(tree, normalization = "tips"))) %>% bind_rows(.id = 'tree') %>% mutate(process = "ADB"),
+           lapply(trees_sim_bd, function(tree) data.frame(b1_index = b1(tree, normalization = "tips"))) %>% bind_rows(.id = 'tree') %>% mutate(process = "BD")) %>%
+  mutate(process = factor(process, levels = c("Empirical", "BD", "ADB")))
+g2 = ggplot(b1, aes(x = process, y = b1_index, fill = process)) + 
+  geom_boxplot(outlier.size = 0.5, show.legend = F) +
+  scale_y_continuous(limits = c(0,1), breaks = pretty_breaks()) +
+  scale_fill_manual(values = palette) +
+  labs(title = "C", x = NULL, y = "B1 balance index") +
+  theme(plot.title = element_text(face = "bold"), plot.title.position = "plot")
+
+g1 + g2
+ggsave("comparison_phylogenies.pdf", width = 8, height = 4)

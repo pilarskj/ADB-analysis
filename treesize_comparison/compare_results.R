@@ -42,22 +42,23 @@ df_runtime = df %>%
   pivot_longer(cols = c("exact_time", "approx_time"), names_to = "method", values_to = "time") %>%
   mutate(ntips = factor(ntips, levels = ntips_ls), method = as.factor(sub("_time", "", method))) 
 
-g1 = ggplot(df_runtime, aes(x = ntips, y = time, color = method)) +
+r1 = ggplot(df_runtime, aes(x = ntips, y = time, color = method)) +
   geom_point(size = 1) +
   stat_summary(aes(group = method), fun = "mean", geom = "line") +
   scale_color_manual(values = c("#009E73","#D55E00")) +
   geom_rect(xmin = 0.5, xmax = 4.5, ymin = 0, ymax = 300, fill = NA, color = "grey", linetype = "dashed", linewidth = 0.5) + # create inset
-  labs(x = "Tree size", y = "Time for log-likelihood\ncomputation (ms)", color = NULL) 
+  labs(title = "B", x = "Tree size", y = "Time for log-likelihood\ncomputation (ms)", color = NULL) +
+  theme(legend.position = "inside", legend.position.inside = c(0.25,0.8),
+        plot.title = element_text(face= "bold"), plot.title.position = "plot")
 
-g2 = ggplot(df_runtime, aes(x = ntips, y = time, color = method)) +
+r2 = ggplot(df_runtime, aes(x = ntips, y = time, color = method)) +
   geom_point(size = 1) +
   stat_summary(aes(group = method), fun = "mean", geom = "line") +
   scale_color_manual(values = c("#009E73","#D55E00")) +
   coord_cartesian(ylim = c(0,300)) +
-  labs(x = "Tree size", y = "Time for log-likelihood\ncomputation (ms)", color = NULL) 
-  
-g1 + g2 + plot_layout(guides = "collect", axes = "collect") & theme(legend.position = "bottom")
-ggsave("likelihood_runtime.pdf", width = 8, height = 4)
+  labs(x = "Tree size", y = "Time for log-likelihood\ncomputation (ms)", color = NULL) +
+  theme(legend.position = "none")
+
 
 ## ---------------------------
 
@@ -67,18 +68,18 @@ df_error = df %>%
   mutate(rel_error = abs_error / ntips) %>%
   mutate(ntips = factor(ntips, levels = ntips_ls))
 
-g1 = ggplot(df_error, aes(x = ntips, y = abs_error)) +
+e1 = ggplot(df_error, aes(x = ntips, y = abs_error)) +
   geom_point(size = 1) +
   stat_summary(aes(group = 1), fun = "mean", geom = "line") +
   labs(x = "Tree size", y = "Absolute error") 
 
-g2 = ggplot(df_error, aes(x = ntips, y = rel_error)) +
+e2 = ggplot(df_error, aes(x = ntips, y = rel_error)) +
   geom_point(size = 1) +
   stat_summary(aes(group = 1), fun = "mean", geom = "line") +
   scale_y_continuous(limits = c(0, 0.05)) +
   labs(x = "Tree size", y = "Relative error") 
 
-g1 + g2 + plot_layout(guides = "collect", axes = "collect") & theme(legend.position = "bottom")
+e1 + e2 + plot_layout(guides = "collect", axes = "collect") & theme(legend.position = "bottom")
 ggsave("likelihood_error.pdf", width = 8, height = 3.5)
 
 ## ---------------------------
@@ -131,13 +132,16 @@ df_time = read.csv("job_duration.csv") %>%
   mutate(cfactor = cfactor[ID]) %>% # simplefactor: 200 / ESS, alternatively, use subsampling
   mutate(ctime = runtime * cfactor) # time to convergence
 
-
-ggplot(df_time, aes(x = ntips, y = ctime)) +
+# add to runtime plot
+r3 = ggplot(df_time, aes(x = ntips, y = ctime)) +
   geom_point(size = 1, alpha = 0.8) + #  position = position_jitter(0.1)
   scale_y_continuous(limits = c(1, 25)*3600, breaks = seq(5, 25, by = 5)*3600, labels = function(x) sprintf("%.0f h", x/3600)) + 
   stat_summary(aes(group = 1), fun = "mean", geom = "line") +
-  labs(x = "Tree size", y = "Time to convergence (h)") 
-ggsave("inference_runtime.pdf", width = 4.5, height = 3.5)
+  labs(title = "C", x = "Tree size", y = "Time to convergence (h)") +
+  theme(plot.title = element_text(face = "bold"), plot.title.position = "plot")
+
+r1 + r2 + r3 + plot_layout(axes = "collect_y")
+ggsave("runtime.pdf", width = 10, height = 4)
 
 
 ## evaluate parameter estimates
@@ -148,7 +152,7 @@ data = data_ls %>% bind_rows(.id = "ID") %>%
   mutate(parameter = factor(parameter, levels = parameters))
 
 # plot with true parameters as reference
-g1 = ggplot(data_long %>% filter(parameter == "shape"), aes(x = interaction(tree, ntips), y = value, fill = ntips)) +
+g1 = ggplot(data %>% filter(parameter == "shape"), aes(x = interaction(tree, ntips), y = value, fill = ntips)) +
   geom_violin_discrete(show.legend = F) +
   geom_hline(yintercept = 5, linetype = 'dashed') +
   scale_fill_manual(values = palette) +
@@ -156,26 +160,52 @@ g1 = ggplot(data_long %>% filter(parameter == "shape"), aes(x = interaction(tree
   labs(x = "Tree size", y = expression(paste("Shape ", italic(k)))) +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
 
-g2 = ggplot(data_long %>% filter(parameter == "lifetime"), aes(x = ntips, y = value, fill = ntips, color = ntips, group = interaction(ntips, tree))) +
+g2 = ggplot(data %>% filter(parameter == "lifetime"), aes(x = ntips, y = value, fill = ntips, color = ntips, group = interaction(ntips, tree))) +
   geom_violin(position = "dodge", linewidth = 0.1, show.legend = F, scale = "width") + 
   geom_hline(yintercept = 10, linetype = 'dashed', alpha = 0.8) +
   scale_fill_manual(values = palette) +
   scale_color_manual(values = palette) + 
   labs(x = "Tree size", y = expression(paste("Mean lifetime ", italic(l)))) 
 
-g3 = ggplot(data_long %>% filter(parameter == "deathprob"), aes(x = ntips, y = value, fill = ntips, color = ntips, group = interaction(ntips, tree))) +
+g3 = ggplot(data %>% filter(parameter == "deathprob"), aes(x = ntips, y = value, fill = ntips, color = ntips, group = interaction(ntips, tree))) +
   geom_violin(position = "dodge", linewidth = 0.1, show.legend = F, scale = "width") + 
   geom_hline(yintercept = 0.1, linetype = 'dashed', alpha = 0.8) +
   scale_fill_manual(values = palette) +
   scale_color_manual(values = palette) + 
   labs(x = "Tree size", y = expression(paste("Death probability ", italic(d)))) 
 
-g4 = ggplot(data_long %>% filter(parameter == "rho"), aes(x = ntips, y = value, fill = ntips, color = ntips, group = interaction(ntips, tree))) +
+g4 = ggplot(data %>% filter(parameter == "rho"), aes(x = ntips, y = value, fill = ntips, color = ntips, group = interaction(ntips, tree))) +
   geom_violin(position = "dodge", linewidth = 0.1, show.legend = F, scale = "width") + 
   geom_hline(yintercept = 0.1, linetype = 'dashed', alpha = 0.8) +
   scale_fill_manual(values = palette) +
   scale_color_manual(values = palette) + 
   labs(x = "Tree size", y = expression(paste("Sampling probability ", rho))) 
 
-g1 + g2 + g3 + g4 + plot_layout(ncol = 2, nrow = 2, axes = "collect_x")
-ggsave("inference_results.pdf", width = 10, height = 8)
+g1 + ggtitle("A") + g2 + g3 + g4 + plot_layout(ncol = 2, nrow = 2, axes = "collect_x") &
+  theme(plot.title = element_text(face= "bold"), plot.title.position = "plot")
+ggsave("inference_results.pdf", width = 10, height = 6)
+
+
+## check coverage
+# load get_sumstats_from_log from ADB-analysis/validation/evaluate_inference.R
+truth = data.frame(parameter = factor(parameters, levels = parameters), true = c(5, 10, 0.1, 0.1))
+test = lapply(data_ls, function(log) { get_sumstats_from_log(log, parameters) }) %>% 
+  bind_rows(.id = "ID") %>%
+  left_join(truth, by = "parameter") %>%
+  left_join(tree_data, by = "ID") %>%
+  mutate(correct = ifelse(true >= lower & true <= upper, T, F),
+         parameter = factor(parameter, levels = parameters))
+
+ggplot(test, aes(x = ntips, y = median, group = ID, color = correct)) +
+  geom_point(size = 0.7, show.legend = F, position = position_dodge(0.9)) + 
+  geom_errorbar(aes(ymin = lower, ymax = upper), alpha = 0.5, show.legend = F, position = position_dodge(0.9)) +
+  geom_hline(data = truth, aes(yintercept = true), alpha = 0.25) + 
+  scale_color_manual(values = c("FALSE" = "#F8766D", "TRUE" = "#009E73")) + 
+  scale_y_continuous(breaks = pretty_breaks()) +
+  labs(x = "Tree size", y = "Posterior median\nwith 95% HPD interval") +
+  facet_wrap(~parameter, scales = "free", labeller = as_labeller(
+    c("shape" = "'Shape'~italic(k)", "lifetime" = "'Mean lifetime'~italic(l)", 
+      "deathprob" = "'Death probability'~italic(d)", "rho" = "'Sampling probability'~italic(rho)"), 
+    label_parsed)) +
+  theme(axis.text.x = element_blank())
+ggsave("inference_coverage.pdf", width = 10, height = 6)
