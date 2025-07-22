@@ -22,7 +22,7 @@ set.seed(2)
 nsim = 100 # number of trees
 
 ## draw model parameters
-shape = round(rlnorm(n = nsim, meanlog = 2, sdlog = 1)) 
+shape = sample(1:100, size = nsim, replace = TRUE)
 lifetime = rlnorm(n = nsim, meanlog = 2, sdlog = 1)
 deathprob = rexp(n = nsim, rate = 10)
 rho = rbeta(n = nsim, shape1 = 2, shape = 5)

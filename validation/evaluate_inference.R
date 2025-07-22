@@ -19,18 +19,19 @@ library(tidyr)
 library(tibble)
 library(ggplot2)
 library(scales)
+library(patchwork)
 theme_set(theme_classic(base_size = 14))
 
 ## ---------------------------
 
 # Function for calculating the median and 95% HPD interval for all inferred parameters from a log table
-get_sumstats_from_log <- function(log, parameters){
+get_sumstats_from_log <- function(log, parameters, cred_lev = 0.95){
   stats = sapply(parameters, function(x) {
     # get posterior estimates
     ix = match(x, colnames(log))
     posterior = log[, ix]
     # calculate median and HPD interval  
-    hpd = hdi(posterior, credMass = 0.95)
+    hpd = hdi(posterior, credMass = cred_lev)
     stats = c('lower' = hpd[[1]], 'median' = median(posterior), 'upper' = hpd[[2]])
   }) %>% 
     t() %>% as.data.frame() %>% rownames_to_column('parameter')
@@ -67,6 +68,10 @@ get_estimates <- function(log_fs, parameters) {
 
 ## load ground truth parameters
 truth = read.csv("tree_data.csv")
+truth_long = truth %>%
+  pivot_longer(cols = all_of(parameters), names_to = "parameter", values_to = "true") %>%
+  select(ID = tree, parameter, true) %>%
+  mutate(ID = as.character(ID))
 
 ## load inferred parameters
 log_fs = paste0('inference/inference_', c(1:100), '.log')
@@ -74,20 +79,17 @@ parameters = c('shape', 'lifetime', 'deathprob', 'rho')
 data = get_estimates(log_fs, parameters)
 
 ## check convergence
-data %>% filter(ESS < 200) %>% pull(ID) %>% unique() # 3 chains did not converge: 16, 38, 42
+data %>% filter(ESS < 200) %>% pull(ID) %>% unique() # one chain did not converge: 25 (for LogNormal: 16, 38, 42)
 data %>% filter(is.na(ESS)) # all have shape = 1
 truth[data %>% filter(is.na(ESS)) %>% pull(ID) %>% as.numeric(), ] # indeed, the real shape is 1
 
 ## align estimates & calculate coverage
 df = data %>% 
-  left_join(truth %>%
-              pivot_longer(cols = parameters, names_to = "parameter", values_to = "true") %>%
-              select(ID = tree, parameter, true) %>%
-              mutate(ID = as.character(ID)), by = c("ID", "parameter")) %>%
+  left_join(truth_long, by = c("ID", "parameter")) %>%
   mutate(correct = ifelse(true >= lower & true <= upper, T, F),
          parameter = factor(parameter, levels = parameters)) %>%
-  filter(!ID %in% c("16", "38", "42")) # remove erroneous chains from downstream analysis
-cov = df %>% group_by(parameter) %>% summarize(cov = round(sum(correct), 1)) 
+  filter(ID != "25") # remove erroneous chain from downstream analysis
+cov = df %>% group_by(parameter) %>% summarize(cov = sum(correct)) 
 
 # plot 95% coverage validation
 ggplot(df, aes(x = true, y = median, color = correct)) +
@@ -103,6 +105,7 @@ ggplot(df, aes(x = true, y = median, color = correct)) +
       "deathprob" = "'Death probability'~italic(d)", "rho" = "'Sampling probability'~italic(rho)"), 
     label_parsed))
 ggsave("validation_95HPD.pdf", width = 8, height = 6)
+
 
 ## calculate relative bias, error, HPD width
 df = df %>% 
@@ -142,11 +145,11 @@ g2 = ggplot(df_with_truth %>% mutate(error = pmin(error, 5)), aes(x = true_shape
     label_parsed)) +
   theme(axis.text.x = element_blank())
 
-g3 = ggplot(df_with_truth %>% mutate(hpd_width = pmin(hpd_width, 10)), aes(x = true_shape, y = hpd_width)) +  # clip very large d hpd widths due to division by 0 0
+g3 = ggplot(df_with_truth %>% mutate(hpd_width = pmin(hpd_width, 10)), aes(x = true_shape, y = hpd_width)) +  # clip very large d hpd widths due to division by 0
   geom_point(size = 0.7, alpha = 0.8) +
   geom_hline(yintercept = 0, linetype = 'dotted') +
   scale_y_continuous(breaks = pretty_breaks()) +
-  expand_limits(y = c(0, 3)) +
+  expand_limits(y = c(0, 5)) +
   labs(x = expression(paste("True shape ", italic(k))), y = "Relative HPD width") +
   facet_wrap(~parameter, nrow = 1, scales = "free") +
   theme(strip.background = element_blank(), strip.text = element_blank())
@@ -154,5 +157,42 @@ g3 = ggplot(df_with_truth %>% mutate(hpd_width = pmin(hpd_width, 10)), aes(x = t
 g1 / g2 / g3 + plot_layout(axes = 'collect_x')
 ggsave("validation_accuracy.pdf", width = 10, height = 10)
 
+
+## coverage validation: test credibility levels
+# generate bounds for reference
+hpd_levels = seq(0.05,0.95,0.05)
+hpd_ci = lapply(hpd_levels, function(lev) {
+  ci = c(lev, qbinom(c(0.025,0.975), 100, lev, lower.tail = TRUE, log.p = FALSE)) 
+  names(ci) = c("cred_lev", "min", "max") 
+  return(ci) }) %>% bind_rows()
+
+# calculate coverage for each credibility level
+data = lapply(log_fs, function(f) {
+  log = remove_burn_ins(parse_beast_tracelog_file(f), burn_in_fraction = 0.1)
+  stats = lapply(hpd_levels, function(lev) get_sumstats_from_log(log, parameters, lev) %>% mutate(cred_lev = lev)) %>% 
+    bind_rows()
+}) %>% bind_rows(.id = "ID") %>%
+  left_join(truth_long, by = c("ID", "parameter")) %>%
+  mutate(cred_lev = as.numeric(cred_lev),
+         correct = ifelse(true >= lower & true <= upper, T, F),
+         parameter = factor(parameter, levels = parameters)) %>% 
+  filter(ID != "25") 
+df_cov = data %>% 
+  group_by(parameter, cred_lev) %>% 
+  summarize(cov = sum(correct)) %>%
+  left_join(hpd_ci) %>% 
+  mutate(pass = ifelse(cov >= min & cov <= max, T, F))
+
+# plot coverage
+ggplot(df_cov, aes(x = cred_lev, y = cov)) +
+  geom_point() +
+  geom_ribbon(data = hpd_ci, aes(x = cred_lev, ymin = min, ymax = max), inherit.aes = F, fill = NA, color = "black", linetype = "dashed") +
+  scale_x_continuous(limits = c(0,1), breaks = seq(0.05, 0.95, 0.45)) +
+  labs(x = "Credibility level", y = "Coverage (%)") +
+  facet_wrap(~parameter, nrow = 1, labeller = as_labeller(
+    c("shape" = "'Shape'~italic(k)", "lifetime" = "'Mean lifetime'~italic(l)", 
+      "deathprob" = "'Death probability'~italic(d)", "rho" = "'Sampling probability'~italic(rho)"), 
+    label_parsed))
+ggsave("validation_coverage.pdf", width = 10, height = 3.5)
 
 

@@ -45,7 +45,7 @@
   <!-- define state node -->
   <state id="state" spec="beast.base.inference.State" storeEvery="1000">
 
-    <!-- ADBP parameters with intial values-->
+    <!-- ADB parameters with intial values-->
     <parameter id="lifetime" spec="beast.base.inference.parameter.RealParameter"
                name="stateNode" dimension="1" lower="0" upper="Infinity" value="50"/>
 
@@ -77,7 +77,7 @@
       <LogNormal name="distr" M="2" S="1"/></prior> 
 
     <prior id="shapePrior" name="distribution" x="@shape">
-      <LogNormal name="distr" M="2" S="1"/></prior> 
+      <Uniform name="distr" lower="1" upper="100"/></prior> 
 
     <prior id="deathprobPrior" name="distribution" x="@deathprob">
       <Exponential name="distr" mean="0.1"/></prior>
