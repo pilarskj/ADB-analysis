@@ -67,6 +67,7 @@ get_estimates <- function(log_fs, parameters) {
 ## ---------------------------
 
 ## load ground truth parameters
+parameters = c('shape', 'lifetime', 'deathprob', 'rho')
 truth = read.csv("tree_data.csv")
 truth_long = truth %>%
   pivot_longer(cols = all_of(parameters), names_to = "parameter", values_to = "true") %>%
@@ -75,7 +76,6 @@ truth_long = truth %>%
 
 ## load inferred parameters
 log_fs = paste0('inference/inference_', c(1:100), '.log')
-parameters = c('shape', 'lifetime', 'deathprob', 'rho')
 data = get_estimates(log_fs, parameters)
 
 ## check convergence
