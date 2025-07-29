@@ -209,3 +209,37 @@ ggplot(test, aes(x = ntips, y = median, group = ID, color = correct)) +
     label_parsed)) +
   theme(axis.text.x = element_blank())
 ggsave("inference_coverage.pdf", width = 10, height = 6)
+
+## ---------------------------
+
+## demonstrate on likelihood curves the systematic bias in inferring death probabilities from large trees
+test_death = test %>% 
+  filter(ntips == 5000, parameter == "deathprob") %>%
+  select(tree, lower, median, upper, correct) %>%
+  filter(tree %in% c(2:4))
+
+df_lik = read.csv("tree_likelihood_death.csv") %>%
+  pivot_longer(cols = c("approx_logL", "exact_logL"), names_to = "method", values_to = "logL") %>%
+  mutate(method = sub("_logL", "", method)) %>%
+  filter(tree %in% c(2:4)) %>%
+  distinct()
+
+# view maxima
+df_lik %>% group_by(tree, method) %>% filter(logL == max(logL))
+
+# plot
+ribbon_label = "posterior median with 95% HPD interval"
+ggplot() + 
+  geom_line(data = df_lik, aes(x = deathprob, y = logL, linetype = method)) + # %>% filter(deathprob <= 0.25)
+  geom_vline(xintercept = 0.1, alpha = 0.3) +
+  geom_vline(data = test_death, aes(xintercept = median, color = correct), linetype = "dotted", alpha = 0.5) +
+  geom_rect(data = test_death, aes(xmin = lower, xmax = upper, ymin = -Inf, ymax = Inf, fill = correct), alpha = 0.1) + 
+  scale_linetype_manual(values = c("approx" = "solid", "exact" = "dashed")) + 
+  scale_color_manual(values = c("FALSE" = "#F8766D", "TRUE" = "#009E73"), labels = ribbon_label) + 
+  scale_fill_manual(values = c("FALSE" = "#F8766D", "TRUE" = "#009E73"), labels = ribbon_label) + 
+  facet_wrap(~tree, nrow = 1) +
+  labs(x = expression(paste("Death probability ", italic(d))), y = "Log Lik", linetype = NULL, color = NULL, fill = NULL) +
+  theme(strip.background = element_blank(), strip.text = element_blank(), legend.position = "bottom") +
+  guides(linetype = guide_legend(order = 1))
+ggsave("approximation_error.pdf", width = 8, height = 3.5)
+

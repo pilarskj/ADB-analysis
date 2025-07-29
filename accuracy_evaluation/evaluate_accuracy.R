@@ -103,3 +103,46 @@ g2 = ggplot(mapping = aes(x = value, y = logL)) +
 
 g1 / g2 + plot_layout(axes = "collect")
 ggsave('loglik_BDMM_ADB_low_sampling.pdf', width = 8, height = 6)
+
+## ---------------------------
+
+## investigate approximation error on likelihood curves for death probability
+# simulate trees with different parameters
+bs = c(1, 5, 100)
+ds = c(0.01, 0.1, 0.25)
+tree_data = expand.grid(shape = bs, deathprob = ds)
+set.seed(1)
+trees = lapply(c(1:nrow(tree_data)), function(i) {
+  repeat { 
+    tree = sim_adb_ntaxa_samp(ntaxa = 100, a = 10 / tree_data[i, "shape"], b = tree_data[i, "shape"], d = tree_data[i, "deathprob"], rho = 0.1)
+    if (!is.null(tree)) break
+  }
+  tree = tree@phylo
+  tree$tip.label = c(1:Ntip(tree))
+  return(tree) }) 
+
+# store trees with metadata
+tree_data$newick = sapply(trees, write.tree)
+tree_data$origin = sapply(trees, function(t) t$origin)
+tree_data = rownames_to_column(tree_data, var = "tree")
+write.table(tree_data, "trees_grid.tsv", row.names = F, quote = F)
+
+# tree_data = read.table("trees_grid.tsv", sep = " ", header = T) %>% mutate(tree = as.character(tree))
+
+# load likelihood values (calculated in BEAST2, see https://github.com/pilarskj/ADB/blob/main/test/test/adbp/GammaBranchingModelTest.java)
+df = read.csv("loglik_trees_grid.csv") %>%
+  pivot_longer(cols = c("approx_logL", "exact_logL"), names_to = "method", values_to = "logL") %>%
+  mutate(tree = as.character(tree), method = sub("_logL", "", method)) %>%
+  left_join(tree_data %>% select(tree, shape, true_deathprob = deathprob))
+
+ggplot(df, aes(x = deathprob, y = logL, linetype = method, color = method)) + 
+  geom_line() +
+  geom_vline(aes(xintercept = true_deathprob), linetype = 'dashed', color = 'darkgrey') +
+  scale_linetype_manual(values = c("approx" = "solid", "exact" = "dashed")) + 
+  scale_color_manual(values = c("approx" = "#9ECAE1", "exact" = "black")) + 
+  facet_grid(rows = vars(shape), cols = vars(true_deathprob), 
+             labeller = label_bquote(cols = italic(d):.(true_deathprob),
+                                     rows = italic(k):.(shape))) +
+  labs(x = expression(paste("Death probability ", italic(d))), y = "Log Lik", linetype = NULL, color = NULL) +
+  theme(legend.position = "bottom")
+ggsave('loglik_grid_death.pdf', width = 8, height = 8)
