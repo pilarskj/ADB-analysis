@@ -31,7 +31,7 @@ get_sumstats_from_log <- function(log, parameters, cred_lev = 0.95){
     ix = match(x, colnames(log))
     posterior = log[, ix]
     # calculate median and HPD interval  
-    hpd = hdi(posterior, credMass = cred_lev)
+    hpd = HDInterval::hdi(posterior, credMass = cred_lev)
     stats = c('lower' = hpd[[1]], 'median' = median(posterior), 'upper' = hpd[[2]])
   }) %>% 
     t() %>% as.data.frame() %>% rownames_to_column('parameter')
@@ -105,6 +105,21 @@ ggplot(df, aes(x = true, y = median, color = correct)) +
       "deathprob" = "'Death probability'~italic(d)", "rho" = "'Sampling probability'~italic(rho)"), 
     label_parsed))
 ggsave("validation_95HPD.pdf", width = 8, height = 6)
+
+# color plot by true shape
+df_shape = df %>% left_join(truth %>% mutate(ID = as.character(tree)) %>% select(ID, true_shape = shape)) 
+ggplot(df_shape, aes(x = true, y = median, color = true_shape)) +
+  geom_point(size = 0.7) + 
+  geom_errorbar(aes(ymin = lower, ymax = upper), alpha = 0.5, show.legend = F) +
+  geom_line(aes(x = true, y = true), inherit.aes = F, alpha = 0.25) + 
+  scale_color_viridis_c(option = "plasma", trans = "sqrt", end = 0.9, direction = -1) +
+  scale_y_continuous(breaks = pretty_breaks()) +
+  labs(x = "True value", y = "Posterior median\nwith 95% HPD interval", color = expression(italic(k))) +
+  facet_wrap(~parameter, scales = "free", labeller = as_labeller(
+    c("shape" = "'Shape'~italic(k)", "lifetime" = "'Mean lifetime'~italic(l)", 
+      "deathprob" = "'Death probability'~italic(d)", "rho" = "'Sampling probability'~italic(rho)"), 
+    label_parsed))
+ggsave("validation_95HPD_colorShape.pdf", width = 8, height = 6)
 
 
 ## calculate relative bias, error, HPD width

@@ -66,7 +66,7 @@
 
     <!-- tree prior --> 
     <distribution id="prior" spec="beast.base.inference.CompoundDistribution" useThreads='true'>
-      <distribution id="GammaBranchingModel" spec="adbp.GammaBranchingModel" tree="@tree" 
+      <distribution id="GammaBranchingModel" spec="adb.GammaBranchingModel" tree="@tree" 
         lifetime="@lifetime" shapeInteger="@shape" deathprob="@deathprob" rho="@rho" approx="true">
         <parameter spec="beast.base.inference.parameter.RealParameter" name="origin" value="$(origin)"/>
       </distribution>
@@ -102,9 +102,9 @@
             parameter="@deathprob" scaleFactor="0.5" weight="10"/>
             
   <operator id="rhoScaler" spec="beast.base.evolution.operator.ScaleOperator" 
-            parameter="@rho" scaleFactor="0.5" weight="10"/> <!-- used feast.operators.SmartScaleOperator -->
+            parameter="@rho" scaleFactor="0.5" weight="10"/> 
          
-  <!-- joint operator due to correlations --> 
+  <!-- joint operators due to correlations --> 
   <operator id="lifetimeDeathUpDown" spec="beast.base.inference.operator.UpDownOperator" scaleFactor="0.5" weight="10">
     <up idref="lifetime"/>
     <down idref="deathprob"/>
@@ -119,6 +119,7 @@
     <up idref="deathprob"/>
     <down idref="rho"/>
   </operator> 
+
 
   <!-- loggers -->
   <!-- screen logger -->
