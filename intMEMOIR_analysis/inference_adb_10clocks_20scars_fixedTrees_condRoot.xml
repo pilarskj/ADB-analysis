@@ -20838,7 +20838,7 @@
     <parameter id="lossRate" spec="beast.base.inference.parameter.RealParameter" 
       dimension="1" lower="0.0" name="stateNode" upper="1000"> 0.0 </parameter>
     
-    <!-- ADBP parameters -->
+    <!-- ADB parameters -->
     <parameter id="lifetime" spec="beast.base.inference.parameter.RealParameter" dimension="1" lower="0" name="stateNode" upper="Infinity"> 10 </parameter> 
     <parameter id="shape" spec="beast.base.inference.parameter.IntegerParameter" dimension="1" lower="1" name="stateNode"> 10 </parameter>  
     <parameter id="deathprob" spec="beast.base.inference.parameter.RealParameter" dimension="1" lower="0" name="stateNode" upper="1"> 0.1 </parameter>  
@@ -21177,9 +21177,9 @@
         <distribution id="prior" spec="beast.base.inference.CompoundDistribution">
           <plate var="n" range="&range;">
             <!-- tree prior --> 
-            <distribution id="adbp_$(n)" spec="adbp.GammaBranchingModel" tree="@$(n)_tree" 
-              lifetime="@lifetime" shapeInteger="@shape" deathprob="@deathprob" rho="@rho_$(n)" origin="@origin" approx="true"
-              conditionOnRoot="true" toleranceP="1e-6" stepSizeP="1024"> 
+            <distribution id="adb_$(n)" spec="adb.GammaBranchingModel" tree="@$(n)_tree" 
+              lifetime="@lifetime" shapeInteger="@shape" deathprob="@deathprob" rho="@rho_$(n)" origin="@origin" 
+              approx="true" stepSizeP="2048" conditionOnRoot="true"> 
             </distribution>
           </plate>
 

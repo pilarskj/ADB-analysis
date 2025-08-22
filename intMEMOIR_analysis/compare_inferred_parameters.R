@@ -20,6 +20,7 @@ library(tibble)
 library(ggplot2)
 library(geomViolinDiscrete)
 library(ggdist)
+library(scales)
 library(patchwork)
 theme_set(theme_classic(base_size = 14))
 palette = c("#E69F00", "#56B4E9", "#009E73","#D55E00", "#CC79A7")
@@ -68,9 +69,9 @@ for (param in c("lifetime", "deathprob", "shape")) {
   print(param)
   summary = data %>% 
     group_by(model) %>%
-    summarise(lower = hdi(.data[[param]], credMass = 0.95)[1], 
+    summarise(lower = HDInterval::hdi(.data[[param]], credMass = 0.95)[1], 
               median = median(.data[[param]]),
-              upper = hdi(.data[[param]], credMass = 0.95)[2])
+              upper = HDInterval::hdi(.data[[param]], credMass = 0.95)[2])
   print(summary)
 }
 
@@ -152,6 +153,124 @@ g5 = ggplot(data_scars, aes(x = site, y = scarringRate, fill = model)) +
   ylim(c(0, 2)) +
   labs(x = expression(paste("Site ", italic(i))), y = expression(paste("Scar multiplier ", italic(s)[italic(i)])), fill = NULL) 
 
-g4 / g5 + plot_layout(guides = "collect") & theme(legend.position = "bottom")
+g4 / g5 + plot_layout(guides = "collect")
 ggsave("comparison_editing_parameters.pdf", width = 8, height = 7)
+
+## ---------------------------
+
+## assess inference of sampling probabilities under ADB
+rho_log_fs = paste0("inference_adb_fixedTrees_condRoot_withRho/chain", c(1:5), ".log") 
+rho_log = lapply(rho_log_fs, function(f) remove_burn_ins(parse_beast_tracelog_file(f), burn_in_fraction = 0.1)) %>% 
+  bind_rows(.id = "chain") 
+all(calc_esses(rho_log %>% select(-chain), sample_interval = 1000) > 200, na.rm = T)
+
+# load ground truth
+truth = read.table("tree_data.tsv", header = T)
+
+# load get_sumstats_from_log from ADB-analysis/validation/evaluate_inference.R
+parameters = colnames(rho_log)[grepl("rho", colnames(rho_log))]
+df = get_sumstats_from_log(rho_log, parameters) %>%
+  mutate(tree_id = sub("rho_", "", sub("_data", "", parameter))) %>%
+  left_join(truth) %>%
+  select(tree_id, true = rho, lower, median, upper) 
+
+# assess coverage: consider that 1 can be approached but unlikely to be sampled
+df = df %>% 
+  mutate(correct = ifelse(true >= lower & true <= upper, T, F)) %>%
+  mutate(correct_trunc = case_when(true < 1 & true >= lower & true <= upper ~ T,
+                                   true == 1 & upper >= 0.999 ~ T,
+                                   .default = F))
+
+r1 = ggplot(df, aes(x = true, y = median, color = correct_trunc)) + 
+  geom_point(size = 0.7, alpha = 0.8, show.legend = F) + 
+  geom_errorbar(aes(ymin = lower, ymax = upper), alpha = 0.2, show.legend = F) +
+  geom_abline(alpha = 0.1) +
+  scale_x_continuous(limits = c(0,1), breaks = pretty_breaks()) +
+  scale_y_continuous(limits = c(0,1), breaks = pretty_breaks()) +
+  scale_color_manual(values = c("FALSE" = "#F8766D", "TRUE" = "#009E73")) +
+  labs(title = "A", x = expression(paste("True sampling probability ", rho)), y = "Posterior median\nwith 95% HPD interval") +
+  theme(plot.title = element_text(face = "bold"), plot.title.position = "plot")
+
+# plot distribution (true vs. inferred)
+df_long = df %>% 
+  pivot_longer(cols = c("true", "median"), names_to = "parameter", values_to = "value") %>%
+  select(tree_id, parameter, value) %>%
+  mutate(parameter = factor(parameter, levels = c("true", "median")))
+r2 = ggplot(df_long, aes(x = parameter, y = value, fill = parameter)) +
+  geom_boxplot(outlier.size = 0.7, show.legend = F) +
+  scale_y_continuous(limits = c(0,1), breaks = pretty_breaks()) +
+  scale_fill_manual(values = c("true" = palette[3], "median" = palette[5])) +
+  labs(title = "B", x = NULL, y = expression(paste("Sampling probability ", rho))) +
+  theme(plot.title = element_text(face = "bold"), plot.title.position = "plot")
+
+# compare lifetime and death to previous estimates
+df_cf = rbind(adb_log %>% select(shape, lifetime, deathprob) %>% mutate(model = "fixed"), 
+              rho_log %>% select(shape, lifetime, deathprob) %>% mutate(model = "inferred"))
+
+cf1 = ggplot(df_cf, aes(x = model, y = shape, fill = model)) + 
+  geomViolinDiscrete::geom_violin_discrete(scale = "width", color = NA, show.legend = F) +
+  stat_pointinterval(mapping = aes(x = model, y = shape, group = model), 
+                     point_interval = median_hdi, .width = 0.95, point_size = 0.2, linewidth = 0.2, alpha = 0.5, show.legend = F) +
+  scale_fill_manual(values = palette[c(3,5)]) + 
+  scale_y_continuous(limits = c(0,50), breaks = seq(10,50,10)) +
+  labs(x = NULL, y = expression(paste("Shape ", italic(k))), fill = NULL) +
+  theme(axis.text.x = element_blank())
+
+cf2 = ggplot(df_cf, aes(x = model, y = lifetime, fill = model)) +
+  geom_violin(color = NA) + 
+  stat_pointinterval(mapping = aes(x = model, y = lifetime, group = model), 
+                     point_interval = median_hdi, .width = 0.95, point_size = 0.2, linewidth = 0.2, alpha = 0.5, show.legend = F) +
+  geom_hline(yintercept = l_emp, linetype = "dashed") + # empirical estimate as reference
+  scale_fill_manual(values = palette[c(3,5)]) + 
+  ylim(c(1,20)) +
+  labs(x = NULL, y = expression(paste("Mean lifetime ", italic(l))), fill = NULL) +
+  theme(axis.text.x = element_blank())
+
+cf3 = ggplot(df_cf, aes(x = model, y = deathprob, fill = model)) +
+  geom_violin(color = NA) + 
+  stat_pointinterval(mapping = aes(x = model, y = deathprob, group = model), 
+                     point_interval = median_hdi, .width = 0.95, point_size = 0.2, linewidth = 0.2, alpha = 0.5, show.legend = F) +
+  geom_hline(yintercept = d_emp, linetype = "dashed") + # empirical estimate as reference
+  scale_fill_manual(values = palette[c(3,5)]) + 
+  ylim(c(0,0.5)) +
+  labs(x = NULL, y = expression(paste("Death probability ", italic(d))), fill = NULL) +
+  theme(axis.text.x = element_blank())
+
+(r1 + r2 + plot_layout(axis_titles = "collect", widths = c(2,1))) /
+(cf1 + ggtitle("C") + cf2 + cf3 + plot_layout(guides = "collect") & 
+  theme(legend.position = "bottom", plot.title = element_text(face = "bold"), plot.title.position = "plot"))
+ggsave("comparison_sampling.pdf", width = 8, height = 8)
+
+## ---------------------------
+
+## add-on: verify inference from simulations
+sim_log_fs = paste0("inference_sim/chain", c(1:5), ".log") 
+sim_log = lapply(sim_log_fs, function(f) remove_burn_ins(parse_beast_tracelog_file(f), burn_in_fraction = 0.1)) %>% 
+  bind_rows(.id = "chain") 
+all(calc_esses(sim_log %>% select(-chain), sample_interval = 1000) > 200, na.rm = T)
+
+# get parameters
+truth = read.csv("tree_sim_data.csv") %>% mutate(tree = as.character(tree))
+parameters = paste0("rho_", c(1:106))
+df = get_sumstats_from_log(sim_log, parameters) %>%
+  mutate(tree = sub("rho_", "", parameter)) %>%
+  left_join(truth) %>%
+  select(tree, true = rho, lower, median, upper) 
+
+# assess coverage: consider that 1 can be approached but unlikely to be sampled
+df = df %>% 
+  mutate(correct = ifelse(true >= lower & true <= upper, T, F)) %>%
+  mutate(correct_trunc = case_when(true < 1 & true >= lower & true <= upper ~ T,
+                                   true == 1 & upper >= 0.999 ~ T,
+                                   .default = F))
+
+ggplot(df, aes(x = true, y = median, color = correct_trunc)) + # r2 with correct_trunc
+  geom_point(size = 0.7, alpha = 0.8, show.legend = F) + 
+  geom_errorbar(aes(ymin = lower, ymax = upper), alpha = 0.2, show.legend = F) +
+  geom_line(aes(x = true, y = true), inherit.aes = F, alpha = 0.1) +
+  scale_x_continuous(breaks = pretty_breaks()) +
+  scale_y_continuous(breaks = pretty_breaks()) +
+  scale_color_manual(values = c("FALSE" = "#F8766D", "TRUE" = "#009E73")) +
+  labs(x = expression(paste("True sampling probability ", rho)), y = "Posterior median\nwith 95% HPD interval")
+#r1 + r2 + plot_layout(axis_titles = "collect")
 

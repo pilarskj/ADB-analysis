@@ -43,6 +43,7 @@ tree_data = full_join(groundTruth, dreamChallenge, by = c("file.name" = "fileNam
   mutate(tree_id = sub("_data", "", file.name), rho = round(nCells / n.cells, digits = 2)) %>%
   select(tree_id, rho, n_full = n.cells, n_sampled = nCells, tree_full = newick, tree_sampled = ground) %>%
   filter(tree_id %in% ids)
+write.table(tree_data, "tree_data.tsv", sep = "\t", row.names = F, quote = F)
 all(names(trees) == tree_data$tree_id)
 
 ## ---------------------------
@@ -63,7 +64,9 @@ trees_sim_adb = lapply(rho_seq, function(rho) {
     tree = sim_adb_origin_samp(origin_time = origin, a = l_adb/k_adb, b = k_adb, d = d_adb, rho = rho) 
     if (!is.null(tree)) break
   }
-  return(tree@phylo) }) 
+  tree = tree@phylo
+  tree$tip.label = c(1:Ntip(tree))
+  return(tree) }) 
 
 # BD
 l_bd = estimates %>% filter(process == "BD") %>% pull(lifetime)
@@ -110,3 +113,28 @@ g2 = ggplot(b1, aes(x = process, y = b1_index, fill = process)) +
 
 g1 + g2
 ggsave("comparison_phylogenies.pdf", width = 8, height = 4)
+
+## ---------------------------
+
+## for testing: run inference on simulated trees
+# store ADB trees and tree info for validating inference settings
+lapply(c(1:length(rho_seq)), function(i) write.tree(trees_sim_adb[[i]], paste0('trees_sim/tree_', i, '.newick')))
+tree_sim_data = data.frame(
+  tree = c(1:length(rho_seq)), 
+  rho = rho_seq,
+  ntips = sapply(trees_sim_adb, function(t) Ntip(t)))
+write.csv(tree_sim_data, file = 'tree_sim_data.csv', quote = F, row.names = F)
+
+# create programmatically dummy alignments for xml
+create_dummy_alignment <- function(tree_data, filename){
+  strings = paste0('
+<data id="alignment_', tree_data$tree, '" name="alignment">
+  <plate var="i" range="1:', tree_data$ntips, '">
+    <sequence id="alignment_', tree_data$tree, '_cell_$(i)" taxon="$(i)" value="-"/>
+  </plate>
+</data>')
+  for (s in strings){
+    write(x = s, file = filename, append = T)
+  }
+}
+# create_dummy_alignment(tree_sim_data, "alignments_sim.xml")
