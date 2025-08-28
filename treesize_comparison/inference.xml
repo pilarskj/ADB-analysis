@@ -45,7 +45,7 @@
   <!-- define state node -->
   <state id="state" spec="beast.base.inference.State" storeEvery="1000">
 
-    <!-- ADBP parameters with intial values-->
+    <!-- ADB parameters with intial values-->
     <parameter id="lifetime" spec="beast.base.inference.parameter.RealParameter"
                name="stateNode" dimension="1" lower="0" upper="Infinity" value="5"/>
 
@@ -66,7 +66,7 @@
 
     <!-- tree prior --> 
     <distribution id="prior" spec="beast.base.inference.CompoundDistribution" useThreads='true'>
-      <distribution id="GammaBranchingModel" spec="adbp.GammaBranchingModel" tree="@tree" 
+      <distribution id="GammaBranchingModel" spec="adb.GammaBranchingModel" tree="@tree" 
         lifetime="@lifetime" shapeInteger="@shape" deathprob="@deathprob" rho="@rho" approx="true">
         <parameter spec="beast.base.inference.parameter.RealParameter" name="origin" value="$(origin)"/>
       </distribution>
@@ -128,7 +128,7 @@
   </logger>
 
  <!-- trace logger -->
-  <logger id="tracelog" spec="beast.base.inference.Logger" fileName="inference/inference_n$(nTips)_$(treeNr).log" logEvery="1000">
+  <logger id="tracelog" spec="beast.base.inference.Logger" fileName="test/inference_n$(nTips)_$(treeNr).log" logEvery="1000">
     <log idref="posterior"/>
     <log idref="prior"/>
     <log idref="lifetime"/>

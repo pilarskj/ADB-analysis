@@ -14,7 +14,7 @@ echo "$string"
 
 java -Dglass.platform=Monocle -Dmonocle.platform=Headless \
 --module-path $HOME/javafx-sdk-17.0.6-linux-monocle/lib --add-modules=javafx.base,javafx.fxml \
--jar $HOME/beast_runs/ADB_16-05-25.jar \
+-jar $HOME/beast_runs/ADB_06-08-25.jar \
 -version_file $HOME/beast_runs/version_files/adbp_version.xml \
 -version_file $HOME/beast_runs/version_files/feast_version.xml \
 -version_file $HOME/beast_runs/version_files/beast_version.xml \
