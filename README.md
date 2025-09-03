@@ -1,6 +1,6 @@
 # ADB-analysis
 
-This repository contains code to reproduce the analyses from the manuscript **"Bayesian phylodynamics for developmental biology: incorporating age-dependence"** [add link].
+This repository contains code to reproduce the analyses from the manuscript **"Bayesian phylodynamics for developmental biology: incorporating age-dependence"** ([Preprint](https://doi.org/10.1101/2025.08.28.672870) on bioRxiv).
 
 The scripts are used for:
 
